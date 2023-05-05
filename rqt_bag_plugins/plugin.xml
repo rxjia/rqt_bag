@@ -10,4 +10,10 @@
       A plugin for rqt_bag for plotting data.
     </description>
   </class>
+
+  <class name="BagFfmpegPlugin" type="rqt_bag_plugins.ffmpeg_plugin.FfmpegPlugin" base_class_type="rqt_bag::Plugin">
+    <description>
+      A plugin for rqt_bag for plotting data.
+    </description>
+  </class>
 </library>
