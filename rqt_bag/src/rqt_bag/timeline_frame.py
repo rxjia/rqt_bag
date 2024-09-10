@@ -914,6 +914,7 @@ class TimelineFrame(QGraphicsItem):
         :param clamp_to_visible:
             disallow values that are greater than the current timeline bounds,''bool''
         :returns: timestamp, ''float''
+        :returns: timestamp, ''float''
         """
         fraction = float(x - self._history_left) / self._history_width
 
@@ -1088,6 +1089,8 @@ class TimelineFrame(QGraphicsItem):
         self._clicked_pos = self._dragged_pos = event.pos()
         print('clicked_pos: {}'.format(self._clicked_pos))
         print(self._history_left, self._history_right, self._history_top, self._history_bottom)
+        print('clicked_pos: {}'.format(self._clicked_pos))
+        print(self._history_left, self._history_right, self._history_top, self._history_bottom)
 
         self.pause()
 
@@ -1100,6 +1103,7 @@ class TimelineFrame(QGraphicsItem):
             if y >= self._history_top and y <= self._history_bottom:
                 # Clicked within timeline - set playhead
                 playhead_secs = self.map_x_to_stamp(x)
+                print('playhead_secs: {}'.format(playhead_secs))
                 print('playhead_secs: {}'.format(playhead_secs))
                 if playhead_secs <= 0.0:
                     self.playhead = Time(nanoseconds=1)

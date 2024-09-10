@@ -38,20 +38,32 @@ import os
 import pathlib
 import sqlite3
 
+import rosbags.rosbag2
+
 from rclpy.clock import Clock, ClockType
 from rclpy.duration import Duration
+from rclpy import logging
 from rclpy.serialization import deserialize_message
 from rclpy.time import Time
 import rosbag2_py
 from rosidl_runtime_py.utilities import get_message
 import yaml
+import rosbags
 
+WRITE_ONLY_MSG = "open for writing only, returning None"
+
+Entry = namedtuple('Entry', ['topic', 'data', 'timestamp'])
+from rosbags.typesys import Stores, get_typestore
+
+typestore = get_typestore(Stores.LATEST)
 
 class Rosbag2:
 
     def __init__(self, bag_path, recording=False, topics={},
                  serialization_format='cdr', storage_id='sqlite3'):
         self.bag_path = bag_path
+        self.reader = None
+        self._logger = logging.get_logger('rqt_bag.Rosbag2')
 
         if recording:
             # If we're recording, the new rosbag doesn't have a metadata.yaml file yet, since
@@ -74,7 +86,15 @@ class Rosbag2:
                 bag_info = full_bag_info['rosbag2_bagfile_information']
                 database_relative_name = bag_info['relative_file_paths'][0]
 
-                self.db_name = os.path.join(self.bag_path, database_relative_name)
+                # self.db_name = os.path.join(self.bag_path, database_relative_name)
+                print(f"load bag: {bag_path}")
+                self.reader= rosbags.rosbag2.Reader(bag_path)
+                self.reader.open()
+                # with self.reader:
+                self.topic_connection_map = {}
+                for connection in self.reader.connections:
+                    self.topic_connection_map[connection.topic] = connection
+                    
                 self.start_time = Time(nanoseconds=bag_info['starting_time']
                                        ['nanoseconds_since_epoch'])
                 self.duration = Duration(nanoseconds=bag_info['duration']['nanoseconds'])
@@ -125,15 +145,51 @@ class Rosbag2:
         return topics_by_type
 
     def get_entry(self, timestamp, topic=None):
+        # return self.get_entry_raw(timestamp, topic)
+        return self.get_entry_by_rosbags(timestamp, topic)
+    
+    def get_entry_raw(self, timestamp, topic=None):
         """Get the (serialized) entry for a specific timestamp.
 
         Returns the entry that is closest in time (<=) to the provided timestamp.
         """
         sql_query = 'timestamp<={} ORDER BY messages.timestamp ' \
                     'DESC LIMIT 1;'.format(timestamp.nanoseconds)
+        print(f"get_entry: {timestamp} - {topic}")
         result = self._execute_sql_query(sql_query, topic)
         return result[0] if result else None
-
+    
+    def topic2conns(self, topic):
+        if topic is None:
+            connections = ()
+        else:
+            connections = [self.topic_connection_map[topic]]
+        return connections
+    
+    def get_entry_by_rosbags(self, timestamp, topic=None):
+        # print(f"get_entry: {timestamp} - {topic}")
+        if not self.reader:
+            self._logger.warn(WRITE_ONLY_MSG)
+            # print(f"reader: None")
+            return None
+        if topic is None:
+            connections = ()
+        else:
+            connections = [self.topic_connection_map[topic]]
+        
+        # with self.reader:
+        msgs = self.reader.messages(start=timestamp.nanoseconds, connections=connections)
+        result = next(msgs, None)
+        if result is None:
+            return None
+        conn, timestamp, rawdata = result
+        # msg = typestore.deserialize_cdr(rawdata, conn.msgtype)
+        entry = Entry(conn.topic, rawdata, timestamp)
+        # print(f"   entry: {entry.topic} {timestamp}")
+        if entry.topic is None:
+            return None
+        return entry
+    
     def get_entry_after(self, timestamp, topic=None):
         """Get the next entry after a given timestamp."""
         sql_query = 'timestamp>{} ORDER BY messages.timestamp ' \
@@ -143,12 +199,17 @@ class Rosbag2:
 
     def get_entries_in_range(self, t_start, t_end, topic=None):
         """Get a list of all of the entries within a given range of timestamps (inclusive)."""
-        sql_query = 'timestamp>={} AND timestamp<={} ' \
-                    'ORDER BY messages.timestamp;'.format(t_start.nanoseconds, t_end.nanoseconds)
-        return self._execute_sql_query(sql_query, topic)
+        # sql_query = 'timestamp>={} AND timestamp<={} ' \
+        #             'ORDER BY messages.timestamp;'.format(t_start.nanoseconds, t_end.nanoseconds)
+        # return self._execute_sql_query(sql_query, topic)
+        # with self.reader:
+        msgs = self.reader.messages(start=t_start.nanoseconds, stop=t_end.nanoseconds, connections=self.topic2conns(topic))
+        entries = [Entry(conn.topic, rawdata, timestamp) for conn, timestamp, rawdata in msgs]
+        return entries
 
     def deserialize_entry(self, entry):
         """Deserialize a bag entry into its corresponding ROS message."""
+        # print(f"deserialize_entry: {(entry.topic)}")
         msg_type_name = self.get_topic_type(entry.topic)
         msg_type = get_message(msg_type_name)
         ros_message = deserialize_message(entry.data, msg_type)
