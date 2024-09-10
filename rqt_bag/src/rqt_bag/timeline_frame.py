@@ -913,17 +913,17 @@ class TimelineFrame(QGraphicsItem):
         :param x: pixel value to be converted, ''int''
         :param clamp_to_visible:
             disallow values that are greater than the current timeline bounds,''bool''
-        :returns: timestamp, ''int''
+        :returns: timestamp, ''float''
         """
         fraction = float(x - self._history_left) / self._history_width
 
         if clamp_to_visible:
             if fraction <= 0.0:
-                return int(self._stamp_left)
+                return self._stamp_left
             elif fraction >= 1.0:
-                return int(self._stamp_right)
+                return self._stamp_right
 
-        return int(self._stamp_left + fraction * (self._stamp_right - self._stamp_left))
+        return self._stamp_left + fraction * (self._stamp_right - self._stamp_left)
 
     def map_dx_to_dstamp(self, dx):
         """
@@ -1086,6 +1086,8 @@ class TimelineFrame(QGraphicsItem):
             return
 
         self._clicked_pos = self._dragged_pos = event.pos()
+        print('clicked_pos: {}'.format(self._clicked_pos))
+        print(self._history_left, self._history_right, self._history_top, self._history_bottom)
 
         self.pause()
 
@@ -1098,6 +1100,7 @@ class TimelineFrame(QGraphicsItem):
             if y >= self._history_top and y <= self._history_bottom:
                 # Clicked within timeline - set playhead
                 playhead_secs = self.map_x_to_stamp(x)
+                print('playhead_secs: {}'.format(playhead_secs))
                 if playhead_secs <= 0.0:
                     self.playhead = Time(nanoseconds=1)
                 else:
