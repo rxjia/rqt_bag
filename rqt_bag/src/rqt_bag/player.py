@@ -95,7 +95,7 @@ class Player(QObject):
     def stop_clock_publishing(self):
         self._publish_clock = False
         if CLOCK_TOPIC in self._publishers:
-            self._node.destroy_publisher(self._publishers[topic])
+            self._node.destroy_publisher(self._publishers[CLOCK_TOPIC])
             del self._publishers[CLOCK_TOPIC]
 
     def stop(self):

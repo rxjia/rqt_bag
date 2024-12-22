@@ -86,8 +86,8 @@ class Rosbag2:
                 bag_info = full_bag_info['rosbag2_bagfile_information']
                 database_relative_name = bag_info['relative_file_paths'][0]
 
-                # self.db_name = os.path.join(self.bag_path, database_relative_name)
-                print(f"load bag: {bag_path}")
+                self.db_name = os.path.join(self.bag_path, database_relative_name)
+                self._logger.info(f"load bag: {bag_path}")
                 self.reader= rosbags.rosbag2.Reader(bag_path)
                 self.reader.open()
                 # with self.reader:
@@ -155,7 +155,7 @@ class Rosbag2:
         """
         sql_query = 'timestamp<={} ORDER BY messages.timestamp ' \
                     'DESC LIMIT 1;'.format(timestamp.nanoseconds)
-        print(f"get_entry: {timestamp} - {topic}")
+        self._logger.info(f"get_entry: {timestamp} - {topic}")
         result = self._execute_sql_query(sql_query, topic)
         return result[0] if result else None
     
